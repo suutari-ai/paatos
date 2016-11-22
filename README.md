@@ -7,6 +7,14 @@ Päätösrajapinta on avoin ohjelmointirajapinta (API), josta kaupungin päätö
 
 Definition is here: https://github.com/6aika/api-paatos
 
+## Initialize database
+```
+DB=paatos
+createdb ${DB}
+psql ${DB} -c "CREATE EXTENSION postgis"
+python manage.py migrate
+```
+  
 ## Importing data
 
 Helsinki organizations
