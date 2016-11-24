@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import logging
 
-from decisions.models import Membership, Organization, Person
+from decisions.models import Membership, Organization, Person, Post
 
 
 class Importer(object):
@@ -56,10 +56,10 @@ class Importer(object):
         parent = info['parent']
         if parent:
             try:
-                defaults['parent'] = Organization.objects.get(origin_id=info['parent'])
+                defaults['parent'] = Organization.objects.get(origin_id=parent)
             except Organization.DoesNotExist:
-                self.logger.error('Cannot set parent for org %s, org with origin_id %s does not exist' %
-                                  (info['name'], info['parent']))
+                self.logger.error('Cannot set parent for org %s, org with origin_id %s does not exist'
+                                  % (info['name'], parent))
 
         organization, created = Organization.objects.update_or_create(
             data_source=self.data_source,
@@ -75,3 +75,28 @@ class Importer(object):
 
         return organization
 
+    def save_post(self, info):
+        defaults = {
+            'label': info['name'],
+            'start_date': info['founding_date'],
+            'end_date': info['dissolution_date'],
+        }
+
+        organization_id = info['parent']
+        if not organization_id:
+            self.logger.error('Cannot create post %s, it does not seem to have a parent organization' % info['name'])
+            return
+
+        try:
+            defaults['organization'] = Organization.objects.get(origin_id=organization_id)
+        except Organization.DoesNotExist:
+            self.logger.error('Cannot set org for %s, org with origin_id %s does not exist' %
+                              (info['name'], organization_id))
+
+        post, created = Post.objects.update_or_create(
+            data_source=self.data_source,
+            origin_id=info['origin_id'],
+            defaults=defaults,
+        )
+        verb = 'Created' if created else 'Updated'
+        self.logger.info('{} post {}'.format(verb, post))

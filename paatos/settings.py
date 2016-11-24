@@ -1,6 +1,7 @@
 import os
-from environ import Env
+
 from django.utils.translation import ugettext_lazy as _
+from environ import Env
 
 BASE_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), ".."))
 assert os.path.exists(os.path.join(BASE_DIR, "manage.py"))
@@ -38,6 +39,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "rest_framework",
     "easy_select2",
+    "rest_framework_gis",
     "paatos",
     "decisions",
 ]
@@ -70,7 +72,10 @@ TEMPLATES = [
 ]
 
 DATABASES = {
-    "default": env.db_url(default="sqlite:///%s" % os.path.join(BASE_DIR, "db.sqlite3")),
+    'default': {
+        'ENGINE': 'django.contrib.gis.db.backends.postgis',
+        'NAME': 'paatos',
+    }
 }
 
 

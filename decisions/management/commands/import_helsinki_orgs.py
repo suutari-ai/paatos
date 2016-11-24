@@ -1,4 +1,5 @@
-from django.core.management.base import BaseCommand, CommandError
+from django.core.management.base import BaseCommand
+
 from decisions.importer.helsinki import HelsinkiImporter
 
 
@@ -12,4 +13,3 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         importer = HelsinkiImporter(options)
         importer.import_organizations(options['filename'])
-        self.stdout.write(self.style.SUCCESS('All done!'))

@@ -1,8 +1,17 @@
-from django_filters.rest_framework import DjangoFilterBackend
 from django_filters import CharFilter
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, serializers, viewsets
-from decisions.models import Action, Case
+
+from decisions.models import Action, Case, CaseGeometry
+
 from .base import BaseFilter, DataModelSerializer
+
+
+class CaseGeometrySerializer(DataModelSerializer):
+
+    class Meta:
+        model = CaseGeometry
+        exclude = ('url', 'id')
 
 
 class CaseFilter(BaseFilter):
@@ -15,10 +24,11 @@ class CaseFilter(BaseFilter):
 
 class CaseSerializer(DataModelSerializer):
     actions = serializers.HyperlinkedRelatedField(queryset=Action.objects.all(), many=True, view_name='action-detail')
+    geometries = CaseGeometrySerializer(many=True, read_only=True)
 
     class Meta:
         model = Case
-        exclude = ('related_cases',)
+        fields = '__all__'
 
 
 class CaseViewSet(viewsets.ReadOnlyModelViewSet):

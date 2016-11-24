@@ -1,5 +1,6 @@
 from django.conf.urls import include, url
 from django.contrib import admin
+
 from decisions import urls_v1
 
 urlpatterns = [

@@ -1,6 +1,8 @@
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import serializers, viewsets
+
 from decisions.models import Action, Event
+
 from .base import BaseFilter, DataModelSerializer
 
 
@@ -15,7 +17,7 @@ class EventSerializer(DataModelSerializer):
 
     class Meta:
         model = Event
-        exclude = ('attendees',)
+        fields = '__all__'
 
 
 class EventViewSet(viewsets.ReadOnlyModelViewSet):

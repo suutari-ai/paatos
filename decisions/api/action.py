@@ -1,7 +1,9 @@
-from django_filters.rest_framework import DjangoFilterBackend
 from django_filters import CharFilter
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, viewsets
+
 from decisions.models import Action, Attachment, Content
+
 from .base import BaseFilter, DataModelSerializer
 
 

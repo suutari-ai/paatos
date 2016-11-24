@@ -1,7 +1,8 @@
 from django.apps import apps
 from django.contrib import admin
 from easy_select2 import select2_modelform
-from decisions.models import Action, Content, Event, Membership, Organization, Person
+
+from decisions.models import Action, Content, Event, Membership, Organization, Person, Post
 
 
 class PersonMembershipInline(admin.TabularInline):
@@ -51,6 +52,12 @@ class ContentInline(admin.TabularInline):
 @admin.register(Action)
 class ActionAdmin(admin.ModelAdmin):
     inlines = (ContentInline,)
+
+
+@admin.register(Post)
+class PostAdmin(admin.ModelAdmin):
+    model = Post
+    raw_id_fields = ('organization',)
 
 
 for model in apps.get_app_config("decisions").get_models():
