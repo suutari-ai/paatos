@@ -1,5 +1,7 @@
 from rest_framework import viewsets
+
 from decisions.models import Function
+
 from .base import DataModelSerializer
 
 

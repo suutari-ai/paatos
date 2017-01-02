@@ -8,9 +8,10 @@ from rest_framework.reverse import reverse
     'event',
     'function',
     'organization',
+    'post',
 ])
 @pytest.mark.django_db
-def test_smoke_get(client, resource, action, case, function, event, organization):
+def test_smoke_get(client, resource, action, case, function, event, organization, post):
     """
     Test GET to every resource's list and detail endpoint.
     """

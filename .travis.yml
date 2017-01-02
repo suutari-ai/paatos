@@ -1,10 +1,12 @@
 language: python
 sudo: false
 python: 3.4
+addons:
+  postgresql: "9.4"
 install:
   - pip install -U pip wheel
   - pip install -r requirements.txt
 script:
   - flake8 decisions paatos
-  - py.test -vvv --cov decisions decisions/tests
+  - py.test -vvv --cov decisions
 after_success: coveralls

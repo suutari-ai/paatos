@@ -2,13 +2,14 @@
 # Based heavily on https://github.com/City-of-Helsinki/openahjo/blob/4bcb003d5db932ca28ea6851d76a20a4ee6eef54/decisions/importer/helsinki.py  # noqa
 
 import json
-from dateutil.parser import parse as dateutil_parse
 
+from dateutil.parser import parse as dateutil_parse
 from django.db import transaction
 from django.utils.text import slugify
-from .base import Importer
 
-from decisions.models import DataSource, Person, Membership
+from decisions.models import DataSource, Person
+
+from .base import Importer
 
 TYPE_MAP = {
     1: 'council',
@@ -70,27 +71,31 @@ class HelsinkiImporter(Importer):
             return
         org = dict(origin_id=info['id'])
         org['classification'] = TYPE_NAME_FI[info['type']]
+        org_type = TYPE_MAP[info['type']]
 
-        if org['classification'] in ['introducer', 'introducer_field']:
+        if org_type in ['introducer', 'introducer_field']:
             self.skip_orgs.add(org['origin_id'])
             return
 
         # TODO change when model translations are in
-        #org['name'] = {'fi': info['name_fin'], 'sv': info['name_swe']}
+        """
+        org['name'] = {'fi': info['name_fin'], 'sv': info['name_swe']}
+        """
         org['name'] = info['name_fin']
 
         if info['shortname']:
             org['abbreviation'] = info['shortname']
 
         # FIXME: Use maybe sometime
+        """
         DUPLICATE_ABBREVS = [
             'AoOp', 'Vakaj', 'Talk', 'KIT', 'HTA', 'Ryj', 'Pj', 'Sotep', 'Hp',
             'Kesvlk siht', 'Kulttj', 'HVI', 'Sostap', 'KOT',
             'Lsp', 'Kj', 'KYT', 'AST', 'Sote', 'Vp', 'HHE', 'Tj', 'HAKE', 'Ko'
         ]
+        """
 
-        abbr = org.get('abbreviation', None)
-        if org['classification'] in ('council', 'committee', 'board_division', 'board'):
+        if org_type in ('council', 'committee', 'board_division', 'board'):
             org['slug'] = slugify(org['abbreviation'])
         else:
             org['slug'] = slugify(org['origin_id'])
@@ -151,7 +156,10 @@ class HelsinkiImporter(Importer):
                     role=person_info['role'],
                 ))
 
-        self.save_organization(org)
+        if org_type == 'office_holder':
+            self.save_post(org)
+        else:
+            self.save_organization(org)
 
     def import_organizations(self, filename):
         self.logger.info('Importing organizations...')
@@ -176,7 +184,7 @@ class HelsinkiImporter(Importer):
                     ordered.append(org)
                     continue
                 for p in org['parents']:
-                    if not 'added' in self.org_dict[p]:
+                    if 'added' not in self.org_dict[p]:
                         break
                 else:
                     org['added'] = True
@@ -185,3 +193,5 @@ class HelsinkiImporter(Importer):
         for i, org in enumerate(ordered):
             self.logger.info('Processing organization {} / {}'.format(i + 1, len(ordered)))
             self._import_organization(org)
+
+        self.logger.info('Import done!')
