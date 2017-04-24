@@ -229,6 +229,42 @@ class OuluTwebImporter(Importer):
             if created:
                 self.logger.info('Created attachment %s' % attachment)
 
+    def _handle_organization(self, organization_path):
+        if os.path.isfile(organization_path):
+            with open(organization_path, 'r') as org_file: 
+                self._import_organization(json.load(org_file))
+                
+    def _handle_organization_events(self, events_path, organization_source_id):
+        if os.path.exists(events_path):
+            for event_source_id in os.listdir(events_path):
+                event_json_path = events_path + '/' + event_source_id + '/index.json'
+                if os.path.isfile(event_json_path):
+                    with open(event_json_path, 'r') as event_file: 
+                        self._import_event(json.load(event_file), organization_source_id)
+                        self._handle_organization_event_cases(events_path + '/' + event_source_id + '/cases', organization_source_id, event_source_id);
+
+    def _handle_organization_event_cases(self, case_path, organization_source_id, event_source_id):
+        if os.path.exists(case_path):
+            for case_source_id in os.listdir(case_path):
+                case_json_path = case_path + '/' + case_source_id + '/index.json'
+                action_path = case_path + '/' + case_source_id + '/actions.json'
+                attachment_path = case_path + '/' + case_source_id + '/attachments.json'
+                if os.path.isfile(case_json_path):
+                    with open(case_json_path, 'r') as case_file: 
+                        self._import_case(json.load(case_file))
+                        self._handle_organization_event_case_actions_and_contents(action_path, organization_source_id, case_source_id, event_source_id);
+                        self._handle_attachments(attachment_path);
+                        
+    def _handle_organization_event_case_actions_and_contents(self, action_file_path, organization_source_id, case_source_id, event_source_id):
+        if os.path.isfile(action_file_path):
+            with open(action_file_path, 'r') as action_file:
+                self._import_actions_and_contents(json.load(action_file), organization_source_id, case_source_id, event_source_id)
+
+    def _handle_attachments(self, attachment_path):
+        if os.path.isfile(attachment_path):
+            with open(attachment_path, 'r') as attachment_file:
+                self._import_attachments(json.load(attachment_file));
+      
     def import_data(self):
         self.logger.info('Importing oulu tweb data...')
 
@@ -245,27 +281,7 @@ class OuluTwebImporter(Importer):
         
         for organization_source_id in os.listdir(self.options['filepath'] + '/organizations'):
             current_path = self.options['filepath'] + '/organizations/' + organization_source_id
-            if os.path.isfile(current_path + '/index.json'):
-                with open(current_path + '/index.json', 'r') as org_file: 
-                    self._import_organization(json.load(org_file))
-                if os.path.exists(current_path + '/events'):
-                    for event_source_id in os.listdir(current_path + '/events'):
-                        if os.path.isfile(current_path + '/events/' + event_source_id + '/index.json'):
-                            with open(current_path + '/events/' + event_source_id + '/index.json', 'r') as event_file: 
-                                self._import_event(json.load(event_file), organization_source_id)
-                            if os.path.exists(current_path + '/events/' + event_source_id + '/cases'):
-                                for case_source_id in os.listdir(current_path + '/events/' + event_source_id + '/cases'):
-                                    case_path = current_path + '/events/' + event_source_id + '/cases/' + case_source_id + '/index.json'
-                                    action_path = current_path + '/events/' + event_source_id + '/cases/' + case_source_id + '/actions.json'
-                                    attachment_path = current_path + '/events/' + event_source_id + '/cases/' + case_source_id + '/attachments.json'
-                                    if os.path.isfile(case_path):
-                                        with open(case_path, 'r') as case_file: 
-                                            self._import_case(json.load(case_file))
-                                    if os.path.isfile(action_path):
-                                        with open(action_path, 'r') as action_file:
-                                            self._import_actions_and_contents(json.load(action_file), organization_source_id, case_source_id, event_source_id)
-                                    if os.path.isfile(attachment_path):
-                                        with open(attachment_path, 'r') as attachment_file:
-                                            self._import_attachments(json.load(attachment_file));
+            self._handle_organization(current_path + '/index.json')
+            self._handle_organization_events(current_path + '/events', organization_source_id);
 
         self.logger.info('Import done!')
