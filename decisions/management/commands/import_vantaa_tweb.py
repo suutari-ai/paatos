@@ -4,7 +4,7 @@ from decisions.importer.paatos_scraper import PaatosScraperImporter
 
 
 class Command(BaseCommand):
-    help = 'Imports Oulu Tweb data'
+    help = 'Imports Vantaa Tweb data'
 
     def add_arguments(self, parser):
         parser.add_argument('filepath', type=str)
@@ -13,7 +13,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         defaults = dict(
-            name='Oulu Tweb'
+            name='Vantaa Tweb'
         )
-        importer = PaatosScraperImporter('oulu_tweb', defaults, options)
+        importer = PaatosScraperImporter('vantaa_tweb', defaults, options)
         importer.import_data()

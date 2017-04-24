@@ -27,15 +27,15 @@ TYPE_MAP = {
     'Toimikunta': 'working_group',
 }
 
-class OuluTwebImporter(Importer):
-    def __init__(self, *args, **kwargs):
+class PaatosScraperImporter(Importer):
+    def __init__(self, identifier, defaults, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.data_source, created = DataSource.objects.get_or_create(
-            identifier='oulu_tweb',
-            defaults={'name': 'Oulu Tweb'}
+            identifier=identifier,
+            defaults=defaults
         )
         if created:
-            self.logger.debug('Created new data source "oulu_tweb"')
+            self.logger.debug('Created new data source "%s"' % ds_id)
         self.meeting_to_org = None
 
     def _import_organization(self, data):
@@ -108,7 +108,7 @@ class OuluTwebImporter(Importer):
         )
 
         try:
-          defaults['function'] = Function.objects.get(origin_id='oulu-tweb')
+          defaults['function'] = Function.objects.get(origin_id='paatos-scraper')
         except Function.DoesNotExist:
           self.logger.error('Function does not exist')
           return
@@ -266,7 +266,7 @@ class OuluTwebImporter(Importer):
                 self._import_attachments(json.load(attachment_file));
       
     def import_data(self):
-        self.logger.info('Importing oulu tweb data...')
+        self.logger.info('Importing data...')
 
         if self.options['flush']:
             self.logger.info('Deleting all objects first...')
@@ -277,7 +277,7 @@ class OuluTwebImporter(Importer):
             Content.objects.all().delete()
             Attachment.objects.all().delete()
 
-        self._import_function('oulu-tweb', 'oulu-tweb')
+        self._import_function('paatos-scraper', 'paatos-scraper')
         
         for organization_source_id in os.listdir(self.options['filepath'] + '/organizations'):
             current_path = self.options['filepath'] + '/organizations/' + organization_source_id
