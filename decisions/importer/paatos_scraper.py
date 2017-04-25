@@ -83,85 +83,95 @@ class PaatosScraperImporter(Importer):
         if created:
             self.logger.info('Created event %s' % event)
 
-    def _import_case(self, data):
+    def _import_cases(self, data):
         self.logger.info('Importing case...')
 
-        defaults = dict(
-            title=data['title'],
-            register_id=data['registerId'],
-        )
-
-        try:
-            defaults['function'] = Function.objects.get(origin_id=data['functionId'])
-        except Function.DoesNotExist:
-            defaults['function'] = self._import_function(data['functionId'], data['functionId'])
-
-        case, created = Case.objects.update_or_create(
-            data_source=self.data_source,
-            origin_id=data['registerId'],
-            defaults=defaults,
-        )
-
-        if created:
-            self.logger.info('Created case %s' % case)
-
-    def _import_actions_and_contents(self, data, organization_source_id, case_source_id, event_source_id):
-        self.logger.info('Importing actions...')
-
-        for action_data in data:
-            org = Organization.objects.get(origin_id=organization_source_id)
-            if not org:
-                self.logger.error('Organization %s does not exist' % organization_source_id)
-                return
-
-            action_title = action_data['title']
-            if (len(action_data['title']) > 255):
-                action_title = action_title[:255]
-                self.logger.warning('Truncated action title %s' % action_data['title'])
+        for case_data in data:
 
             defaults = dict(
-                title=action_title,
-                ordering=action_data['order']
+                title=case_data['title'],
+                register_id=case_data['registerId'],
             )
-            try:
-                case = Case.objects.get(origin_id=case_source_id)
-                defaults['case'] = case
-            except Case.DoesNotExist:
-                self.logger.error('Case %s does not exist' % case_source_id)
-                continue
-            try:
-                event = Event.objects.get(origin_id=event_source_id)
-                defaults['event'] = event
-            except Event.DoesNotExist:
-                self.logger.error('Event %s does not exist' % event_source_id)
-                continue
 
-            action, created = Action.objects.update_or_create(
+            try:
+                defaults['function'] = Function.objects.get(origin_id=case_data['functionId'])
+            except Function.DoesNotExist:
+                defaults['function'] = self._import_function(case_data['functionId'], case_data['functionId'])
+
+            case, created = Case.objects.update_or_create(
                 data_source=self.data_source,
-                origin_id=self._create_action_id(action_data, case_source_id),
-                defaults=defaults
+                origin_id=case_data['sourceId'],
+                defaults=defaults,
             )
 
             if created:
-                self.logger.info('Created action %s' % action)
+                self.logger.info('Created case %s' % case)
 
-            content_defaults = dict(
-                hypertext=action_data['content'],
+    def _import_action(self, data):
+        self.logger.info('Importing action...')
+
+        defaults = dict(
+            title=data['title'],
+            ordering=data['ordering'],
+            article_number=data['articleNumber']
+        )
+        if data['caseId']:
+            try:
+                case = Case.objects.get(origin_id=data['caseId'])
+                defaults['case'] = case
+            except Case.DoesNotExist:
+                self.logger.error('Case %s does not exist' % data['caseId'])
+                return
+        try:
+            event = Event.objects.get(origin_id=data['eventId'])
+            defaults['event'] = event
+        except Event.DoesNotExist:
+            self.logger.error('Event %s does not exist' % data['eventId'])
+            return
+
+        action, created = Action.objects.update_or_create(
+            data_source=self.data_source,
+            origin_id=data['sourceId'],
+            defaults=defaults
+        )
+
+        if created:
+            self.logger.info('Created action %s' % action)
+
+    def _import_contents(self, data, action_source_id):
+        self.logger.info('Importing action contents...')
+
+        for content_data in data:
+
+            content_title = content_data['title']
+            if (len(content_data['title']) > 255):
+                content_title = content_title[:255]
+                self.logger.warning('Truncated conetent title %s' % content_data['title'])
+
+            defaults = dict(
+                title=content_title,
+                hypertext=content_data['content'],
                 type='',
-                ordering=action_data['order'],
-                action=action
+                ordering=content_data['order']
             )
+
+            try:
+                action = Action.objects.get(origin_id=action_source_id)
+                defaults['action'] = action
+            except Action.DoesNotExist:
+                self.logger.error('Action %s does not exist' % action_source_id)
+                continue
 
             content, created = Content.objects.update_or_create(
                 data_source=self.data_source,
-                origin_id='content-' + str(action_data['order']) + '-' + case_source_id,
-                defaults=content_defaults
+                origin_id=str(content_data['order']) + '-' + action_source_id,
+                defaults=defaults
             )
 
             if created:
                 self.logger.info('Created content %s' % content)
 
-    def _import_attachments(self, data, action_source_id):
+    def _import_attachments(self, data):
         self.logger.info('Importing attachments...')
 
         for attachment_data in data:
@@ -174,7 +184,7 @@ class PaatosScraperImporter(Importer):
             )
 
             try:
-                action = Action.objects.get(origin_id=action_source_id)
+                action = Action.objects.get(origin_id=attachment_data['actionId'])
                 defaults['action'] = action
             except Action.DoesNotExist:
                 self.logger.error('Action %s does not exist' % attachment_data['actionId'])
@@ -189,13 +199,15 @@ class PaatosScraperImporter(Importer):
             if created:
                 self.logger.info('Created attachment %s' % attachment)
 
-    def _create_action_id(self, action_data, case_source_id):
-        return 'action-' + str(action_data['order']) + '-' + case_source_id
-
     def _handle_organization(self, organization_path):
         if os.path.isfile(organization_path):
             with open(organization_path, 'r') as org_file:
                 self._import_organization(json.load(org_file))
+
+    def _handle_organization_cases(self, cases_path):
+        if os.path.isfile(cases_path):
+            with open(cases_path, 'r') as cases_file:
+                self._import_cases(json.load(cases_file))
 
     def _handle_organization_events(self, events_path, organization_source_id):
         if os.path.exists(events_path):
@@ -204,47 +216,33 @@ class PaatosScraperImporter(Importer):
                 if os.path.isfile(event_json_path):
                     with open(event_json_path, 'r') as event_file:
                         self._import_event(json.load(event_file), organization_source_id)
-                        case_folder = events_path + '/' + event_source_id + '/cases'
-                        self._handle_organization_event_cases(
-                            case_folder,
+                        action_folder = events_path + '/' + event_source_id + '/actions'
+                        self._handle_organization_event_actions(
+                            action_folder,
                             organization_source_id,
                             event_source_id)
 
-    def _handle_organization_event_cases(self, case_path, organization_source_id, event_source_id):
-        if os.path.exists(case_path):
-            for case_folder in os.listdir(case_path):
-                case_json_path = case_path + '/' + case_folder + '/index.json'
-                action_path = case_path + '/' + case_folder + '/actions.json'
-                attachment_path = case_path + '/' + case_folder + '/attachments.json'
-                if os.path.isfile(case_json_path):
-                    with open(case_json_path, 'r') as case_file:
-                        case_data = json.load(case_file)
-                        case_source_id = case_data['registerId']
-                        if case_source_id:
-                            self._import_case(case_data)
-                            self._handle_organization_event_case_actions_and_contents(
-                                action_path,
-                                attachment_path,
-                                organization_source_id,
-                                case_source_id,
-                                event_source_id)
+    def _handle_organization_event_actions(self, actions_path, organization_source_id, event_source_id):
+        if os.path.exists(actions_path):
+            for action_source_id in os.listdir(actions_path):
+                action_file_path = actions_path + '/' + action_source_id + '/index.json'
+                contents_file_path = actions_path + '/' + action_source_id + '/contents.json'
+                attachment_file_path = actions_path + '/' + action_source_id + '/attachments.json'
+                if os.path.isfile(action_file_path):
+                    with open(action_file_path, 'r') as action_file:
+                        self._import_action(json.load(action_file))
+                        self._handle_contents(contents_file_path, action_source_id)
+                        self._handle_attachments(attachment_file_path)
 
-    def _handle_organization_event_case_actions_and_contents(
-      self, action_file_path, attachment_file_path,
-      organization_source_id, case_source_id, event_source_id):
-        if os.path.isfile(action_file_path):
-            with open(action_file_path, 'r') as action_file:
-                action_data = json.load(action_file)
-                action_data_first = next(iter(action_data or []), None)
-                self._import_actions_and_contents(action_data, organization_source_id, case_source_id, event_source_id)
-                self._handle_attachments(
-                    attachment_file_path,
-                    self._create_action_id(action_data_first, case_source_id))
+    def _handle_contents(self, contents_path, action_id):
+        if os.path.isfile(contents_path):
+            with open(contents_path, 'r') as contents_file:
+                self._import_contents(json.load(contents_file), action_id)
 
-    def _handle_attachments(self, attachment_path, action_id):
+    def _handle_attachments(self, attachment_path):
         if os.path.isfile(attachment_path):
             with open(attachment_path, 'r') as attachment_file:
-                self._import_attachments(json.load(attachment_file), action_id)
+                self._import_attachments(json.load(attachment_file))
 
     def import_data(self):
         self.logger.info('Importing data...')
@@ -265,6 +263,7 @@ class PaatosScraperImporter(Importer):
             for organization_source_id in os.listdir(temp_dirpath + '/organizations'):
                 current_path = temp_dirpath + '/organizations/' + organization_source_id
                 self._handle_organization(current_path + '/index.json')
+                self._handle_organization_cases(current_path + '/cases.json')
                 self._handle_organization_events(current_path + '/events', organization_source_id)
 
             self.logger.info('Import done!')
