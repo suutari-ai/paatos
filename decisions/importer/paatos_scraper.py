@@ -111,9 +111,9 @@ class PaatosScraperImporter(Importer):
         )
 
         try:
-          defaults['function'] = Function.objects.get(origin_id='paatos-scraper')#Function.objects.get(origin_id=data['functionId'])
+          defaults['function'] = Function.objects.get(origin_id=data['functionId'])
         except Function.DoesNotExist:
-          defaults['function'] = self._import_function('paatos-scraper', 'paatos-scraper')#self._import_function(data['functionId'], data['functionId'])
+          defaults['function'] = self._import_function(data['functionId'], data['functionId'])
 
         case, created = Case.objects.update_or_create(
             data_source=self.data_source,
