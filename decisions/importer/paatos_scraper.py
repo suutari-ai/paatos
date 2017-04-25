@@ -114,8 +114,13 @@ class PaatosScraperImporter(Importer):
                 self.logger.error('Organization %s does not exist' % organization_source_id)
                 return
 
+            action_title = action_data['title']
+            if (len(action_data['title']) > 255):
+                action_title = action_title[:255]
+                self.logger.warning('Truncated action title %s' % action_data['title'])
+
             defaults = dict(
-                title=action_data['title'],
+                title=action_title,
                 ordering=action_data['order']
             )
             try:
