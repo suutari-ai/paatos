@@ -13,21 +13,6 @@ from decisions.models import (
 
 from .base import Importer
 
-TYPE_MAP = {
-    'Valtuusto': 'council',
-    'Hallitus': 'board',
-    'Jaosto': 'board_division',
-    'Lautakunta': 'committee',
-    'Toimiala': 'field',
-    'Virasto': 'department',
-    'Osasto': 'division',
-    'Esittelijä': 'introducer',
-    'Esittelijä (toimiala)': 'introducer_field',
-    'Viranhaltija': 'office_holder',
-    'Kaupunki': 'city',
-    'Yksikkö': 'unit',
-    'Toimikunta': 'working_group',
-}
 
 class PaatosScraperImporter(Importer):
     def __init__(self, identifier, defaults, *args, **kwargs):
@@ -37,16 +22,12 @@ class PaatosScraperImporter(Importer):
             defaults=defaults
         )
         if created:
-            self.logger.debug('Created new data source "%s"' % ds_id)
-        self.meeting_to_org = None
+            self.logger.debug('Created new data source "%s"' % identifier)
 
     def _import_organization(self, data):
         classification = data['classification'].title()
-        if classification not in TYPE_MAP:
-            return
         org = dict(origin_id=data['sourceId'])
         org['classification'] = classification
-        org_type = TYPE_MAP[classification]
 
         org['name'] = data['name']
         org['slug'] = slugify(org['origin_id'])
@@ -74,8 +55,8 @@ class PaatosScraperImporter(Importer):
 
         if created:
             self.logger.info('Created function %s' % function)
-        
-        return function;
+
+        return function
 
     def _import_event(self, data, organization_source_id):
         self.logger.info('Importing event...')
@@ -217,7 +198,7 @@ class PaatosScraperImporter(Importer):
                 if os.path.isfile(event_json_path):
                     with open(event_json_path, 'r') as event_file: 
                         self._import_event(json.load(event_file), organization_source_id)
-                        self._handle_organization_event_cases(events_path + '/' + event_source_id + '/cases', organization_source_id, event_source_id);
+                        self._handle_organization_event_cases(events_path + '/' + event_source_id + '/cases', organization_source_id, event_source_id)
 
     def _handle_organization_event_cases(self, case_path, organization_source_id, event_source_id):
         if os.path.exists(case_path):
@@ -244,7 +225,7 @@ class PaatosScraperImporter(Importer):
     def _handle_attachments(self, attachment_path, action_id):
         if os.path.isfile(attachment_path):
             with open(attachment_path, 'r') as attachment_file:
-                self._import_attachments(json.load(attachment_file), action_id);
+                self._import_attachments(json.load(attachment_file), action_id)
       
     def import_data(self):
         self.logger.info('Importing data...')
@@ -265,6 +246,6 @@ class PaatosScraperImporter(Importer):
             for organization_source_id in os.listdir(temp_dirpath + '/organizations'):
                 current_path = temp_dirpath + '/organizations/' + organization_source_id
                 self._handle_organization(current_path + '/index.json')
-                self._handle_organization_events(current_path + '/events', organization_source_id);
+                self._handle_organization_events(current_path + '/events', organization_source_id)
 
             self.logger.info('Import done!')
