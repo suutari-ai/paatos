@@ -2,6 +2,8 @@
 import json
 import os
 import os.path
+import tempfile
+import zipfile
 import dateutil.parser
 from django.utils.text import slugify
 
@@ -49,11 +51,10 @@ class PaatosScraperImporter(Importer):
         org['name'] = data['name']
         org['slug'] = slugify(org['origin_id'])
 
-        org['founding_date'] = None
-        org['dissolution_date'] = None
-        
-        #TODO: use mapping file to find parent
-        org['parent'] = None
+        org['founding_date'] = data['founding_date']
+        org['dissolution_date'] = data['dissolution_date']
+
+        org['parent'] = data['parent']
 
         self.save_organization(org)
 
@@ -73,6 +74,8 @@ class PaatosScraperImporter(Importer):
 
         if created:
             self.logger.info('Created function %s' % function)
+        
+        return function;
 
     def _import_event(self, data, organization_source_id):
         self.logger.info('Importing event...')
@@ -108,14 +111,13 @@ class PaatosScraperImporter(Importer):
         )
 
         try:
-          defaults['function'] = Function.objects.get(origin_id='paatos-scraper')
+          defaults['function'] = Function.objects.get(origin_id='paatos-scraper')#Function.objects.get(origin_id=data['functionId'])
         except Function.DoesNotExist:
-          self.logger.error('Function does not exist')
-          return
+          defaults['function'] = self._import_function('paatos-scraper', 'paatos-scraper')#self._import_function(data['functionId'], data['functionId'])
 
         case, created = Case.objects.update_or_create(
             data_source=self.data_source,
-            origin_id=data['sourceId'],
+            origin_id=data['registerId'],
             defaults=defaults,
         )
 
@@ -151,7 +153,7 @@ class PaatosScraperImporter(Importer):
 
             action, created = Action.objects.update_or_create(
                 data_source=self.data_source,
-                origin_id='action-' + str(action_data['order']) + '-' + case_source_id,
+                origin_id=self._create_action_id(action_data, case_source_id),
                 defaults=defaults
             )
 
@@ -174,34 +176,7 @@ class PaatosScraperImporter(Importer):
             if created:
                 self.logger.info('Created content %s' % content)
 
-    def _import_contents(self, data):
-        self.logger.info('Importing contents...')
-
-        for content_section_data in data['content_sections']:
-            defaults = dict(
-                hypertext=content_section_data['text'],
-                type=content_section_data['type'],
-                ordering=content_section_data['index'],
-            )
-
-            action_id = content_section_data.get('agenda_item')
-            try:
-                action = Action.objects.get(origin_id=action_id)
-                defaults['action'] = action
-            except Action.DoesNotExist:
-                self.logger.error('Action %s does not exist' % action_id)
-                continue
-
-            content, created = Content.objects.update_or_create(
-                data_source=self.data_source,
-                origin_id=content_section_data['id'],
-                defaults=defaults
-            )
-
-            if created:
-                self.logger.info('Created content %s' % content)
-
-    def _import_attachments(self, data):
+    def _import_attachments(self, data, action_source_id):
         self.logger.info('Importing attachments...')
 
         for attachment_data in data:
@@ -210,11 +185,11 @@ class PaatosScraperImporter(Importer):
                 url=attachment_data['url'],
                 number=attachment_data['number'],
                 public=attachment_data['public'],
-                confidentiality_reason=None,
+                confidentiality_reason=attachment_data['confidentialityReason'] or '',
             )
 
             try:
-                action = Action.objects.get(origin_id=attachment_data['actionId'])
+                action = Action.objects.get(origin_id=action_source_id)
                 defaults['action'] = action
             except Action.DoesNotExist:
                 self.logger.error('Action %s does not exist' % attachment_data['actionId'])
@@ -222,13 +197,14 @@ class PaatosScraperImporter(Importer):
 
             attachment, created = Attachment.objects.update_or_create(
                 data_source=self.data_source,
-                origin_id=attachment_data['id'],
+                origin_id=attachment_data['sourceId'],
                 defaults=defaults
             )
 
             if created:
                 self.logger.info('Created attachment %s' % attachment)
-
+    def _create_action_id(self, action_data, case_source_id):
+      return 'action-' + str(action_data['order']) + '-' + case_source_id
     def _handle_organization(self, organization_path):
         if os.path.isfile(organization_path):
             with open(organization_path, 'r') as org_file: 
@@ -245,25 +221,30 @@ class PaatosScraperImporter(Importer):
 
     def _handle_organization_event_cases(self, case_path, organization_source_id, event_source_id):
         if os.path.exists(case_path):
-            for case_source_id in os.listdir(case_path):
-                case_json_path = case_path + '/' + case_source_id + '/index.json'
-                action_path = case_path + '/' + case_source_id + '/actions.json'
-                attachment_path = case_path + '/' + case_source_id + '/attachments.json'
+            for case_folder in os.listdir(case_path):
+                case_json_path = case_path + '/' + case_folder + '/index.json'
+                action_path = case_path + '/' + case_folder + '/actions.json'
+                attachment_path = case_path + '/' + case_folder + '/attachments.json'
                 if os.path.isfile(case_json_path):
                     with open(case_json_path, 'r') as case_file: 
-                        self._import_case(json.load(case_file))
-                        self._handle_organization_event_case_actions_and_contents(action_path, organization_source_id, case_source_id, event_source_id);
-                        self._handle_attachments(attachment_path);
+                        case_data = json.load(case_file)
+                        case_source_id = case_data['registerId']
+                        if case_source_id:
+                            self._import_case(case_data)
+                            self._handle_organization_event_case_actions_and_contents(action_path, attachment_path, organization_source_id, case_source_id, event_source_id)
                         
-    def _handle_organization_event_case_actions_and_contents(self, action_file_path, organization_source_id, case_source_id, event_source_id):
+    def _handle_organization_event_case_actions_and_contents(self, action_file_path, attachment_file_path, organization_source_id, case_source_id, event_source_id):
         if os.path.isfile(action_file_path):
             with open(action_file_path, 'r') as action_file:
-                self._import_actions_and_contents(json.load(action_file), organization_source_id, case_source_id, event_source_id)
+                action_data = json.load(action_file)
+                action_data_first = next(iter(action_data or []), None)        
+                self._import_actions_and_contents(action_data, organization_source_id, case_source_id, event_source_id)
+                self._handle_attachments(attachment_file_path, self._create_action_id(action_data_first, case_source_id))
 
-    def _handle_attachments(self, attachment_path):
+    def _handle_attachments(self, attachment_path, action_id):
         if os.path.isfile(attachment_path):
             with open(attachment_path, 'r') as attachment_file:
-                self._import_attachments(json.load(attachment_file));
+                self._import_attachments(json.load(attachment_file), action_id);
       
     def import_data(self):
         self.logger.info('Importing data...')
@@ -276,12 +257,14 @@ class PaatosScraperImporter(Importer):
             Action.objects.all().delete()
             Content.objects.all().delete()
             Attachment.objects.all().delete()
-
-        self._import_function('paatos-scraper', 'paatos-scraper')
         
-        for organization_source_id in os.listdir(self.options['filepath'] + '/organizations'):
-            current_path = self.options['filepath'] + '/organizations/' + organization_source_id
-            self._handle_organization(current_path + '/index.json')
-            self._handle_organization_events(current_path + '/events', organization_source_id);
+        with tempfile.TemporaryDirectory() as temp_dirpath:
+            zip_ref = zipfile.ZipFile(self.options['zipfile'], 'r')
+            zip_ref.extractall(temp_dirpath)
+            zip_ref.close()
+            for organization_source_id in os.listdir(temp_dirpath + '/organizations'):
+                current_path = temp_dirpath + '/organizations/' + organization_source_id
+                self._handle_organization(current_path + '/index.json')
+                self._handle_organization_events(current_path + '/events', organization_source_id);
 
-        self.logger.info('Import done!')
+            self.logger.info('Import done!')

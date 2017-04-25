@@ -7,7 +7,7 @@ class Command(BaseCommand):
     help = 'Imports Vantaa Tweb data'
 
     def add_arguments(self, parser):
-        parser.add_argument('filepath', type=str)
+        parser.add_argument('zipfile', type=str)
         parser.add_argument('--flush', action='store_true', dest='flush', default=False,
                             help='Delete all existing objects first')
 
