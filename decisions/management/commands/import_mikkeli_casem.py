@@ -15,5 +15,5 @@ class Command(BaseCommand):
         defaults = dict(
             name='Mikkeli CaseM'
         )
-        importer = PaatosScraperImporter('mikkeli_caseM', defaults, options)
+        importer = PaatosScraperImporter('mikkeli_casem', defaults, options)
         importer.import_data()
