@@ -25,6 +25,10 @@ TYPE_MAP = {
     13: 'city',
     14: 'unit',
     15: 'working_group',
+    16: 'packaged_service',
+    17: 'school_board',
+    18: 'packaged_service_introducer',
+    19: 'trustee'
 }
 
 TYPE_NAME_FI = {
@@ -43,6 +47,10 @@ TYPE_NAME_FI = {
     13: 'Kaupunki',
     14: 'Yksikkö',
     15: 'Toimikunta',
+    16: 'Koulujen johtokunnat',
+    17: 'Palvelukokonaisuus',
+    18: 'Esittelijäpalvelukokonaisuus',
+    19: 'Luottamushenkilö'
 }
 
 PARENT_OVERRIDES = {
@@ -68,12 +76,12 @@ class HelsinkiImporter(Importer):
     @transaction.atomic()
     def _import_organization(self, info):
         if info['type'] not in TYPE_MAP:
-            return
+            raise ValueError('Encountered unknown type id: {}'.format(info['type']))
         org = dict(origin_id=info['id'])
         org['classification'] = TYPE_NAME_FI[info['type']]
         org_type = TYPE_MAP[info['type']]
 
-        if org_type in ['introducer', 'introducer_field']:
+        if org_type in ['introducer', 'introducer_field', 'packaged_service_introducer']:
             self.skip_orgs.add(org['origin_id'])
             return
 
@@ -156,7 +164,7 @@ class HelsinkiImporter(Importer):
                     role=person_info['role'],
                 ))
 
-        if org_type == 'office_holder':
+        if org_type in ['office_holder', 'trustee']:
             self.save_post(org)
         else:
             self.save_organization(org)
