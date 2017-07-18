@@ -25,6 +25,10 @@ TYPE_MAP = {
     13: 'city',
     14: 'unit',
     15: 'working_group',
+    16: 'packaged_service',
+    17: 'school_board',
+    18: 'packaged_service_introducer',
+    19: 'trustee'
 }
 
 TYPE_NAME_FI = {
@@ -43,6 +47,10 @@ TYPE_NAME_FI = {
     13: 'Kaupunki',
     14: 'Yksikkö',
     15: 'Toimikunta',
+    16: 'Koulujen johtokunnat',
+    17: 'Palvelukokonaisuus',
+    18: 'Esittelijäpalvelukokonaisuus',
+    19: 'Luottamushenkilö'
 }
 
 PARENT_OVERRIDES = {
@@ -68,7 +76,7 @@ class HelsinkiImporter(Importer):
     @transaction.atomic()
     def _import_organization(self, info):
         if info['type'] not in TYPE_MAP:
-            return
+            raise ValueError('Encountered unknown type id: {}'.format(info['type']))
         org = dict(origin_id=info['id'])
         org['classification'] = TYPE_NAME_FI[info['type']]
         org_type = TYPE_MAP[info['type']]
