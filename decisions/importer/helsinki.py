@@ -81,7 +81,7 @@ class HelsinkiImporter(Importer):
         org['classification'] = TYPE_NAME_FI[info['type']]
         org_type = TYPE_MAP[info['type']]
 
-        if org_type in ['introducer', 'introducer_field']:
+        if org_type in ['introducer', 'introducer_field', 'packaged_service_introducer']:
             self.skip_orgs.add(org['origin_id'])
             return
 
@@ -164,7 +164,7 @@ class HelsinkiImporter(Importer):
                     role=person_info['role'],
                 ))
 
-        if org_type == 'office_holder':
+        if org_type in ['office_holder', 'trustee']:
             self.save_post(org)
         else:
             self.save_organization(org)
