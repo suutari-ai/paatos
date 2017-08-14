@@ -13,7 +13,7 @@ addons:
 
 install:
   - pip install -U pip wheel
-  - pip install -r requirements.txt
+  - pip install codecov -r requirements.txt
 
 script:
   - flake8 decisions paatos
