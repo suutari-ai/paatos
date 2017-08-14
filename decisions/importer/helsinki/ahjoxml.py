@@ -10,6 +10,8 @@ RESOLUTION_MAP = {
     'hyväksytty': 'accepted'
 }
 
+LOCAL_TZ = pytz.timezone('Europe/Helsinki')
+
 
 class ParseError(Exception):
     pass
@@ -34,50 +36,30 @@ class AhjoDocument:
 
     @staticmethod
     def parse_datetime(raw):
-        t = {}
-        raw = raw.split(' ')
-        date = raw.pop(0)
-        time = raw.pop(0)
+        date = None
 
-        separator = None
-        separators = '-./'
-        for sep in separators:
-            if sep in date:
-                separator = sep
+        # it's important here that the 12h versions are before 24h versions
+        formats = [
+            '%m/%d/%Y %I:%M:%S %p',
+            '%m/%d/%Y %H:%M:%S',
 
-        date = date.split(separator)
-        if len(str(date[0])) == 4:
-            t['year'] = date[0]
-            t['month'] = date[1]
-            t['day'] = date[2]
-        elif len(str(date[2])) == 4:
-            t['year'] = date[2]
-            t['month'] = date[1]
-            t['day'] = date[0]
+            '%d.%m.%Y %I:%M:%S %p',
+            '%d.%m.%Y %H:%M:%S',
+        ]
 
-        if ':' in time:
-            time = time.split(':')
-            t['hour'] = time[0]
-            t['minute'] = time[1]
-            t['second'] = time[2]
+        for fmt in formats:
+            try:
+                date = datetime.strptime(raw, fmt)
+                break
+            except ValueError as r:
+                pass
 
-        for key in t:
-            t[key] = int(t[key])
+        if date is None:
+            raise ParseError('Unknown timestamp')
 
-        if False in [key in t for key in ['year', 'month', 'day', 'minute', 'hour', 'second']]:
-            raise ParseError("Unknown timestamp format")
+        date = LOCAL_TZ.localize(date)
 
-        if len(raw) > 0:
-            # just why would anyone store times in the 12-hour format
-            ampm = raw.pop(0)
-            if 'pm' in ampm.lower() and t['hour'] != 12:
-                t['hour'] += 12
-            elif 'am' in ampm.lower() and t['hour'] == 12:
-                t['hour'] = 0
-
-        date = datetime(**t)
-        tz = pytz.timezone('Europe/Helsinki')
-        date = tz.localize(date)
+        # date = datetime.replace()
 
     def log(self, severity, msg):
         human_readable = '{} (File: {}, Action: {})'.format(msg, self.filename, self.current_action)
@@ -112,21 +94,17 @@ class AhjoDocument:
     def debug(self, msg):
         self.log(logging.DEBUG, msg)
 
-    def import_event(self, event_data, metadata):
-        attrs = {}
+    def import_attendees(self, lasnaolotiedot):
+        ret = []
 
-        date_el = event_data.find('Paivays')
-        date = datetime.strptime(date_el.text, '%Y-%m-%d')
-        attrs['start_date'] = date
-        attrs['end_date'] = date
-
-        attendee_group_els = metadata.findall('.//Osallistujaryhma')
-        attrs['attendees'] = []
+        attendee_group_els = lasnaolotiedot.findall('.//Osallistujaryhma')
 
         for attendee_group_el in attendee_group_els:
-            title = attendee_group_el.find('OsallistujaryhmaOtsikko').text
+            title_el = attendee_group_el.find('OsallistujaryhmaOtsikko')
             attendees = attendee_group_el.findall('Osallistujat')
-            attendee_group = {'title': title, 'members': []}
+            attendee_group = {'members': []}
+            if title_el is not None:
+                attendee_group['title'] = title_el.text
             for attendee in attendees:
                 a_attrs = {}
 
@@ -144,18 +122,28 @@ class AhjoDocument:
 
                 attendee_group['members'].append(a_attrs)
 
-            attrs['attendees'].append(attendee_group)
+            ret.append(attendee_group)
+
+        return ret
+
+    def import_event(self, event_data):
+        attrs = {}
+
+        date_el = event_data.find('Paivays')
+        date = datetime.strptime(date_el.text, '%Y-%m-%d')
+        attrs['start_date'] = date
+        attrs['end_date'] = date
 
         return attrs
 
     def import_content(self, content):
-        assert content.tag == 'SisaltoSektio'
-
         chapters = content.findall('.//Kappale')
         if chapters is not None:
             text = ''
             for chapter in chapters:
-                text += '<p>{}</p>\n'.format(chapter.find('KappaleTeksti').text)
+                chapter_text = chapter.find('KappaleTeksti')
+                if chapter_text is not None:
+                    text += '<p>{}</p>\n'.format(chapter_text.text)
         else:
             self.error("Content doesn't have chapters")
 
@@ -228,14 +216,23 @@ class AhjoDocument:
         event_data = root.find('YlatunnisteSektio')
         event_metadata = root.find('PkKansilehtiSektio')
 
-        if event_data is not None and event_metadata is not None:
-            attrs['event'] = self.import_event(event_data, event_metadata)
+        if event_data is not None:
+            attrs['event'] = self.import_event(event_data)
+            if event_metadata is not None:
+                lasnaolotiedot = event_metadata.find('KansilehtiToisto/Lasnaolotiedot')
+                attrs['event']['attendees'] = self.import_attendees(lasnaolotiedot)
         else:
             self.critical("No event data")
 
         attrs['event']['actions'] = [self.import_action(ac) for ac in actions]
 
         return attrs
+
+    def import_esityslista(self, root):
+        pass
+        # attrs = {}
+
+        # actions = root.find('KasiteltavatAsiat')
 
     def __init__(self, filename, except_treshold=logging.CRITICAL):
         self.logger = logging.getLogger(__name__)
@@ -253,6 +250,9 @@ class AhjoDocument:
 
             if root.tag == 'Poytakirja':
                 self.document = self.import_document(root)
+
+            if root.tag == 'Esityslista':
+                self.document = self.import_esityslista(root)
 
     @property
     def json(self):
