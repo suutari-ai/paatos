@@ -253,15 +253,14 @@ class AhjoDocument:
         self.current_document = None
         self.current_action = None
 
-        with open(filename, encoding='utf-8') as f:
-            xml = f.read()
-            root = etree.fromstring(xml)
+        xml = etree.parse(filename)
+        root = xml.getroot()
 
-            if root.tag == 'Poytakirja':
-                self.document = self.import_document(root)
+        if root.tag == 'Poytakirja':
+            self.document = self.import_document(root)
 
-            if root.tag == 'Esityslista':
-                self.document = self.import_esityslista(root)
+        if root.tag == 'Esityslista':
+            self.document = self.import_esityslista(root)
 
     @property
     def json(self):
