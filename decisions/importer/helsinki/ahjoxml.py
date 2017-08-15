@@ -57,9 +57,7 @@ class AhjoDocument:
         if date is None:
             raise ParseError('Unknown timestamp')
 
-        date = LOCAL_TZ.localize(date)
-
-        # date = datetime.replace()
+        return LOCAL_TZ.localize(date)
 
     def log(self, severity, msg):
         human_readable = '{} (File: {}, Action: {})'.format(msg, self.filename, self.current_action)
@@ -108,7 +106,12 @@ class AhjoDocument:
             for attendee in attendees:
                 a_attrs = {}
 
-                a_attrs['name'] = AhjoDocument.parse_name(attendee.find('Nimi').text)
+                name = attendee.find('Nimi')
+                if name is not None:
+                    a_attrs['name'] = AhjoDocument.parse_name(name.text)
+                else:
+                    self.warning("Attendee doesn't have a name")
+                    continue
 
                 opts = attendee.find('OsallistujaOptiot')
                 if opts is not None:
@@ -225,6 +228,10 @@ class AhjoDocument:
             self.critical("No event data")
 
         attrs['event']['actions'] = [self.import_action(ac) for ac in actions]
+
+        #signatures = root.find('SahkoinenAllekirjoitusSektio')
+        #chairman = signatures.find('PuheenjohtajaSektio').find('PuheenjohtajaToisto')
+        #attrs['chairman'] = chairman.find('Puheenjohtajanimi').text
 
         return attrs
 
