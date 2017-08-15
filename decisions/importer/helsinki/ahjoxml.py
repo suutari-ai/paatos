@@ -229,9 +229,11 @@ class AhjoDocument:
 
         attrs['event']['actions'] = [self.import_action(ac) for ac in actions]
 
-        #signatures = root.find('SahkoinenAllekirjoitusSektio')
-        #chairman = signatures.find('PuheenjohtajaSektio').find('PuheenjohtajaToisto')
-        #attrs['chairman'] = chairman.find('Puheenjohtajanimi').text
+        signatures = root.find('SahkoinenAllekirjoitusSektio')
+        if signatures is None:
+            signatures = root.find('AllekirjoitusSektio')
+            chairman = signatures.find('PuheenjohtajaSektio').find('PuheenjohtajaToisto')
+            attrs['chairman'] = chairman.find('Puheenjohtajanimi').text
 
         return attrs
 
