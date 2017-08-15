@@ -1,14 +1,17 @@
 #!/usr/bin/env python
-import sys
-import os
-import tempfile
-import shutil
-import requests
-import requests_cache
 import logging
+import os
+import shutil
+import sys
+import tempfile
 from datetime import datetime
+
+import requests
 from lxml import html
+
+import requests_cache
 from progressbar import ProgressBar
+
 from .doc import local_timezone
 
 SKIP_DOC_LIST = [
@@ -82,27 +85,11 @@ class AhjoScanner(object):
 
             fname = link.split('/')[-1]
             fname = fname.replace('.zip', '')
-            FIELD_NAMES = ("org", "date", "policymaker", "meeting_nr", "doc_type_id", "language")
-            fields = fname.split('%20')
-            info = {}
-            if len(fields) == len(FIELD_NAMES) - 1:
-                self.logger.warning("Language field missing in %s" % ' '.join(fields))
-                fields.append('Su')
-            if len(fields) != len(FIELD_NAMES):
-                self.logger.warning("Invalid filename: %s" % fname)
-                continue
-            for idx, f in enumerate(FIELD_NAMES):
-                info[f] = fields[idx]
-            info['meeting_nr'] = int(info['meeting_nr'])
-            info['year'] = int(info['date'].split('-')[0])
-            info['policymaker_id'] = policymaker_id
-            info['policymaker_abbr'] = info['policymaker']
+            info = parse_file_path(link)
+
             # Skip Swedish documents
             if info['language'] != 'Su':
                 continue
-
-            DOC_TYPES = {'Pk': 'minutes', 'El': 'agenda'}
-            info['doc_type'] = DOC_TYPES[info['doc_type_id']]
 
             # Fetch timestamp from directory listing
             elems = link_el.getprevious().tail.split('   ')
@@ -196,6 +183,7 @@ class AhjoScanner(object):
         else:
             outf.seek(0)
         return outf
+
 
 if __name__ == "__main__":
     scanner = AhjoScanner()
