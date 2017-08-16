@@ -1,8 +1,8 @@
 import re
-from collections import namedtuple
 
 import dateutil.parser
 import lxml.html
+from django.utils.functional import cached_property
 
 DIRLIST_LINE_RX = re.compile(
     r'\s*'
@@ -11,7 +11,38 @@ DIRLIST_LINE_RX = re.compile(
     r'(?P<size_or_dir>\d+|<dir>)'
     r'\s*')
 
-DirEntry = namedtuple('DirEntry', ('href', 'mtime', 'size', 'type'))
+
+class DirEntry(object):
+    def __init__(self, href, preceeding_text):
+        self.href = href
+        self._preceeding_text = preceeding_text
+        self._groups = self._parse(preceeding_text)
+        self.mtime_text = self._groups['datetime']  # Modification time as text
+
+    def _parse(self, preceeding_text):
+        match = DIRLIST_LINE_RX.match(preceeding_text)
+        if not match:
+            raise ValueError(
+                "Cannot parse preceeding text: {!r}".format(preceeding_text))
+        return match.groupdict()
+
+    def __repr__(self):
+        return '<DirEntry: {}>'.format(self.href)
+
+    @cached_property
+    def mtime(self):
+        """Modification time as datetime."""
+        return dateutil.parser.parse(self.mtime_text)
+
+    @cached_property
+    def size(self):
+        size_or_dir = self._groups['size_or_dir']
+        return int(size_or_dir) if size_or_dir.isdigit() else None
+
+    @cached_property
+    def type(self):
+        size_or_dir = self._groups['size_or_dir']
+        return 'dir' if size_or_dir == '<dir>' else 'file'
 
 
 def parse_dir_listing(content):
@@ -31,19 +62,7 @@ def parse_dir_listing(content):
         href = link_elem.get('href')
         prev = link_elem.getprevious()
         preceeding_text = (prev.tail if prev is not None else '')
-        m = DIRLIST_LINE_RX.match(preceeding_text)
-        if not m:
-            raise ValueError(
-                "Cannot parse preceeding text: {!r}".format(preceeding_text))
-        mtime = dateutil.parser.parse(m.group('datetime'))
-        size_or_dir = m.group('size_or_dir')
-        if size_or_dir == '<dir>':
-            size = None
-            ftype = 'dir'
-        else:
-            size = int(size_or_dir)
-            ftype = 'file'
-        yield DirEntry(href=href, mtime=mtime, size=size, type=ftype)
+        yield DirEntry(href, preceeding_text)
 
 
 FILENAME_RX = re.compile(

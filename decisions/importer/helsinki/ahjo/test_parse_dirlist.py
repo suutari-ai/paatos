@@ -2,7 +2,7 @@
 
 import datetime
 
-from decisions.importer.helsinki.ahjo.parse_dirlist import DirEntry, parse_dir_listing, parse_file_path
+from decisions.importer.helsinki.ahjo.parse_dirlist import parse_dir_listing, parse_file_path
 
 EXAMPLE_ROOT_LISTING = r"""
 <html><head><title>openhelsinki.hel.fi - /files/</title></head>
@@ -34,19 +34,19 @@ Ymparistolautakunta_12800</A><br>
 """.replace('\n', '').replace(r'\r\n', '\r\n').encode('utf-8')
 
 EXAMPLE_ROOT_LISTING_PARSED = [
-    DirEntry(
+    dict(
         href='/files/Asuntolautakunta_60014/',
         mtime=datetime.datetime(2017, 5, 23, 10, 4), size=None, type='dir'),
-    DirEntry(
+    dict(
         href='/files/Asuntotuotantotoimikunta_60011/',
         mtime=datetime.datetime(2017, 5, 29, 10, 4), size=None, type='dir'),
-    DirEntry(
+    dict(
         href='/files/Henkiloston%20kehittamispalvelut-liikelaitos_01900/',
         mtime=datetime.datetime(2014, 11, 22, 11, 2), size=None, type='dir'),
-    DirEntry(
+    dict(
         href='/files/Kaupunkiymparistolautakunta_U540/',
         mtime=datetime.datetime(2017, 6, 21, 13, 0), size=None, type='dir'),
-    DirEntry(
+    dict(
         href='/files/Ymparistolautakunta_12800/',
         mtime=datetime.datetime(2017, 5, 24, 10, 4), size=None, type='dir'),
 ]
@@ -94,33 +94,41 @@ prefix = (
     'Tilasto-%20ja%20tietopalvelupaallikko_023400VH1/')
 
 EXAMPLE_SUBDIR_LISTING_PARSED = [
-    DirEntry(
+    dict(
         href=prefix + 'Tieke%202016-01-04%20023400VH1%201%20Pk%20Su.zip',
         mtime=datetime.datetime(2016, 1, 5, 11, 6), size=129710, type='file'),
-    DirEntry(
+    dict(
         href=prefix + 'Tieke%202016-04-28%20023400VH1%202%20Pk%20Su.zip',
         mtime=datetime.datetime(2016, 4, 29, 10, 0), size=147886, type='file'),
-    DirEntry(
+    dict(
         href=prefix + 'Tieke%202016-10-26%20023400VH1%203%20Pk%20Su.zip',
         mtime=datetime.datetime(2016, 10, 27, 10, 3), size=179324, type='file'),
-    DirEntry(
+    dict(
         href=prefix + 'Tieke%202017-01-03%20023400VH1%201%20Pk%20Su.zip',
         mtime=datetime.datetime(2017, 1, 5, 11, 3), size=137011, type='file'),
 ]
 
 
 def test_root_listing():
-    result = list(parse_dir_listing(EXAMPLE_ROOT_LISTING))
-    assert result == EXAMPLE_ROOT_LISTING_PARSED
+    result = parse_dir_listing(EXAMPLE_ROOT_LISTING)
+    result_data = expand_dir_entries(result)
+    assert result_data == EXAMPLE_ROOT_LISTING_PARSED
 
 
 def test_subdir_listing():
-    result = list(parse_dir_listing(EXAMPLE_SUBDIR_LISTING))
-    assert result == EXAMPLE_SUBDIR_LISTING_PARSED
+    result = parse_dir_listing(EXAMPLE_SUBDIR_LISTING)
+    result_data = expand_dir_entries(result)
+    assert result_data == EXAMPLE_SUBDIR_LISTING_PARSED
+
+
+def expand_dir_entries(dir_entries):
+    return [
+        dict(href=x.href, mtime=x.mtime, size=x.size, type=x.type)
+        for x in dir_entries]
 
 
 def test_parse_file_path():
-    info = parse_file_path(EXAMPLE_SUBDIR_LISTING_PARSED[0].href)
+    info = parse_file_path(EXAMPLE_SUBDIR_LISTING_PARSED[0]['href'])
     assert info == {
         'org': 'Tieke',
         'date': '2016-01-04',
