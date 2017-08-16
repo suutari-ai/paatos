@@ -234,25 +234,24 @@ class AhjoDocument:
 
         # actions = root.find('KasiteltavatAsiat')
 
-    def __init__(self, filename, except_treshold=logging.CRITICAL):
+    def __init__(self, source, except_treshold=logging.CRITICAL):
         self.logger = logging.getLogger(__name__)
         self.errors = []
 
-        self.filename = filename
+        self.filename = source if isinstance(source, str) else source.name
         self.except_treshold = except_treshold
 
         self.current_document = None
         self.current_action = None
 
-        with open(filename, encoding='utf-8') as f:
-            xml = f.read()
-            root = etree.fromstring(xml)
+        xml = etree.parse(source)
+        root = xml.getroot()
 
-            if root.tag == 'Poytakirja':
-                self.document = self.import_document(root)
+        if root.tag == 'Poytakirja':
+            self.document = self.import_document(root)
 
-            if root.tag == 'Esityslista':
-                self.document = self.import_esityslista(root)
+        if root.tag == 'Esityslista':
+            self.document = self.import_esityslista(root)
 
     @property
     def json(self):
