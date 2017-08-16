@@ -28,6 +28,9 @@ class AhjoDocument:
 
     @staticmethod
     def parse_guid(raw):
+        if raw is None:
+            return None
+
         guid_match = re.fullmatch(r'\{([A-F0-9]{8}-(?:[A-F0-9]{4}-){3}[A-F0-9]{12})\}', raw)
         if guid_match is not None:
             return guid_match.group(1).lower()
@@ -36,6 +39,9 @@ class AhjoDocument:
 
     @staticmethod
     def parse_datetime(raw):
+        if raw is None:
+            return None
+
         date = None
 
         # it's important here that the 12h versions are before 24h versions
@@ -57,9 +63,7 @@ class AhjoDocument:
         if date is None:
             raise ParseError('Unknown timestamp')
 
-        date = LOCAL_TZ.localize(date)
-
-        # date = datetime.replace()
+        return LOCAL_TZ.localize(date)
 
     def log(self, severity, msg):
         human_readable = '{} (File: {}, Action: {})'.format(msg, self.filename, self.current_action)
@@ -94,6 +98,18 @@ class AhjoDocument:
     def debug(self, msg):
         self.log(logging.DEBUG, msg)
 
+    def gt(self, parent, el_name, log):
+        el = parent.find(el_name)
+        if el is None:
+            log("Element {} not found".format(el_name))
+            return None
+        else:
+            content = el.text
+            if content is None:
+                log("Element {} is empty".format(el_name))
+
+            return content
+
     def import_attendees(self, lasnaolotiedot):
         ret = []
 
@@ -108,7 +124,12 @@ class AhjoDocument:
             for attendee in attendees:
                 a_attrs = {}
 
-                a_attrs['name'] = AhjoDocument.parse_name(attendee.find('Nimi').text)
+                name = attendee.find('Nimi')
+                if name is not None:
+                    a_attrs['name'] = AhjoDocument.parse_name(name.text)
+                else:
+                    self.warning("Attendee doesn't have a name")
+                    continue
 
                 opts = attendee.find('OsallistujaOptiot')
                 if opts is not None:
@@ -158,35 +179,24 @@ class AhjoDocument:
 
         metadata = action.find('KuvailutiedotOpenDocument')
 
-        title_el = metadata.find('Otsikko')
-        attrs['title'] = title_el.text
+        attrs['title'] = self.gt(metadata, 'Otsikko', self.warning)
+        self.current_action = attrs['title']
 
-        self.current_action = title_el.text
+        attrs['action_class'] = self.gt(metadata, 'AsiakirjallinenTieto', self.warning)
+        if attrs['action_class'] is not None:
+            attrs['action_class'] = attrs['action_class'].split(' ')
 
-        action_class_el = metadata.find('AsiakirjallinenTieto')
-        if action_class_el is not None:
-            attrs['action_class'] = action_class_el.text.split(' ')
-        else:
-            self.warning("Action doesn't have a class")
+        attrs['case_guid'] = AhjoDocument.parse_guid(self.gt(metadata, 'AsiaGuid', lambda x: None))
+        if attrs['case_guid'] is None and \
+           attrs['action_class'] is not None and \
+           attrs['action_class'][-1].lower() != 'vakiopäätös':
+            self.error("Action doesn't have an associated case")
 
-        case_guid_el = metadata.find('AsiaGuid')
-        if case_guid_el is not None:
-            attrs['case_guid'] = AhjoDocument.parse_guid(case_guid_el.text)
-        else:
-            if 'action_class' in attrs and attrs['action_class'][-1].lower() != 'vakiopäätös':
-                self.error("Action doesn't have an associated case")
+        attrs['date'] = AhjoDocument.parse_datetime(self.gt(metadata, 'Paatospaiva', self.error))
 
-        date_el = metadata.find('Paatospaiva')
-        if date_el is not None:
-            attrs['date'] = AhjoDocument.parse_datetime(date_el.text)
-        else:
-            self.error("Action doesn't have a date")
+        attrs['article_number'] = int(self.gt(metadata, 'Pykala', self.error))
 
-        article_number_el = metadata.find('Pykala')
-        if article_number_el is not None:
-            attrs['article_number'] = int(article_number_el.text)
-        else:
-            self.warning("Action doesn't have an ordering number")
+        attrs['dnro'] = self.gt(metadata, 'Dnro/DnroLyhyt', self.warning)
 
         resolution_el = metadata.find('Asiakirjantila')
 
@@ -225,6 +235,13 @@ class AhjoDocument:
             self.critical("No event data")
 
         attrs['event']['actions'] = [self.import_action(ac) for ac in actions]
+
+        # vain viranhaltijan päätöksissä?
+        signatures = root.find('SahkoinenAllekirjoitusSektio')
+        if signatures is None:
+            signatures = root.find('AllekirjoitusSektio')
+            chairman = signatures.find('PuheenjohtajaSektio').find('PuheenjohtajaToisto')
+            attrs['chairman'] = chairman.find('Puheenjohtajanimi').text
 
         return attrs
 
