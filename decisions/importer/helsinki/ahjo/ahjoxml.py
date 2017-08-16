@@ -20,9 +20,9 @@ class AhjoXml(object):
         self.last_state = result.state
         return result.changed
 
-    def get_document_json(self, doc_or_url):
+    def get_document(self, doc_or_url):
         xml_file = self.open_xml_file_of(doc_or_url)
-        return AhjoDocument(xml_file).json
+        return AhjoDocument(xml_file)
 
     def open_xml_file_of(self, doc_or_url):
         url = getattr(doc_or_url, 'url', doc_or_url)
