@@ -29,3 +29,8 @@ class DataModel(BaseModel):
     class Meta:
         abstract = True
         unique_together = ('data_source', 'origin_id')
+
+
+class ImportedFile(DataModel):
+    path = models.CharField(max_length=2000, db_index=True)
+    last_import_mtime = models.CharField(max_length=100)
