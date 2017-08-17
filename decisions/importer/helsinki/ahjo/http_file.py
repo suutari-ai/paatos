@@ -1,9 +1,6 @@
 import os
 import urllib
 
-# How many bytes to spool into memory before saving to disk
-MAX_MEM_SIZE = 1024 * 1024  # 1 MiB
-
 
 class HttpFetchedFile(object):
     """
