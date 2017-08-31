@@ -50,6 +50,21 @@ class ParseError(Exception):
     pass
 
 
+DATE_RANGE_RX = re.compile(
+    # Optional day prefix, e.g. 'Tiistai ' or ''
+    r'(?:\w+ )?'
+    # Date, e.g. '29.8.2017' = GROUP 1
+    r'(\d{1,2}.\d{1,2}.\d{4})'
+    # Optional clock word, e.g. 'kello ', 'klo ', 'klockan ', or ''
+    r' (?:\w+ )?'
+    # Start time, e.g. '7:25' = GROUP 2
+    r'(\d{1,2}[:.]\d\d)'
+    # Separator dash, e.g. ' - ' or '-'
+    r' ?- ?'
+    # End time, e.g. '9:40' = GROUP 3
+    r'(\d{1,2}[:.]\d\d)')
+
+
 class XmlParser:
     @classmethod
     def clean_html(cls, raw):
@@ -153,6 +168,27 @@ class XmlParser:
             raise ParseError('Unknown timestamp')
 
         return LOCAL_TZ.localize(date)
+
+    @classmethod
+    def parse_datetime_range(cls, raw):
+        """
+        Parse datetime range string to a pair of datetimes.
+
+        :type raw: str|None
+        :rtype: (datetime.datetime, datetime.datetime)|None
+        """
+        m = DATE_RANGE_RX.match(raw or '')
+        if not m:
+            return None
+        date_str = m.group(1)
+        start_str = date_str + ' ' + m.group(2).replace('.', ':')
+        end_str = date_str + ' ' + m.group(3).replace('.', ':')
+        try:
+            start = datetime.datetime.strptime(start_str, '%d.%m.%Y %H:%M')
+            end = datetime.datetime.strptime(end_str, '%d.%m.%Y %H:%M')
+        except ValueError:
+            return None
+        return (start, end)
 
     @classmethod
     def gt(cls, parent, el_name, log=lambda x: None, fmt=lambda x: x):
@@ -277,25 +313,11 @@ class XmlParser:
             # all cases because it's not standard in any way. Sometimes there are breaks
             # or the event has been held in multiple sessions at different times. How
             # would this even be represented in the database?
-            time_raw = (self.gt(kokoustiedot, 'Kokousaika') or '').split(',')[0]
-
-            try:
-                date = time_raw.split(' - ')[0].strip()
-                endtime = time_raw.split(' - ')[1].strip()
-
-                start_date = LOCAL_TZ.localize(datetime.strptime(date, '%d.%m.%Y %H:%M'))
-                attrs['start_date'] = start_date
-
-                try:
-                    end_date = datetime.datetime.strptime(endtime, '%H:%M')
-                except ValueError:
-                    # there's one document with a . instead of : ...
-                    end_date = datetime.datetime.strptime(endtime, '%H.%M')
-
-                attrs['end_date'] = start_date.replace(hour=end_date.hour, minute=end_date.minute)
-            except:
-                attrs['start_date'] = None
-                attrs['end_date'] = None
+            datetime_str = self.gt(kokoustiedot, 'Kokousaika')
+            date_range = self.parse_datetime_range(datetime_str)
+            if date_range:
+                attrs['start_date'] = LOCAL_TZ.localize(date_range[0])
+                attrs['end_date'] = LOCAL_TZ.localize(date_range[1])
         else:
             attrs.update({
                 'attendees': [],
