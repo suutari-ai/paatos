@@ -272,19 +272,12 @@ class XmlParser:
 
                 opts = attendee.find('OsallistujaOptiot')
                 if opts is not None:
-                    a_attrs['role'] = self.gt(opts, 'Rooli')
-                else:
-                    a_attrs['role'] = None
+                    _set_if_non_empty(a_attrs, 'role', self.gt(opts, 'Rooli'))
 
-                a_attrs['title'] = self.gt(attendee, 'Titteli')
+                _set_if_non_empty(a_attrs, 'title', self.gt(attendee, 'Titteli'))
 
-                if group_name is not None:
-                    try:
-                        a_attrs['category'] = ATTENDEE_MAP[group_name.lower()]
-                    except KeyError:
-                        continue
-                else:
-                    a_attrs['category'] = 'participant'
+                category = ATTENDEE_MAP.get((group_name or '').lower())
+                a_attrs['category'] = (category or 'participant')
 
                 ret.append(a_attrs)
 
@@ -305,7 +298,9 @@ class XmlParser:
             attrs['attendees'] = self.import_attendees(ctx, lasnaolotiedot)
 
             kokoustiedot = data1.find('Kokoustiedot')
-            attrs['location'] = self.gt(kokoustiedot, 'Kokouspaikka')
+            location = self.gt(kokoustiedot, 'Kokouspaikka')
+            if location:
+                attrs['location'] = location
 
             # format: dd.mm.yyyy hh:mm - hh:mm, possible extra stuff
 
@@ -318,18 +313,11 @@ class XmlParser:
             if date_range:
                 attrs['start_date'] = LOCAL_TZ.localize(date_range[0])
                 attrs['end_date'] = LOCAL_TZ.localize(date_range[1])
-        else:
-            attrs.update({
-                'attendees': [],
-                'location': None,
-                'start_date': None,
-                'end_date': None
-            })
 
         if data2 is not None:
             attrs['name'] = '{} {}'.format(self.gt(data2, 'Paattaja'), self.gt(data2, 'Asiakirjatunnus'))
         else:
-            attrs['name'] = None
+            attrs['name'] = ''
 
         return attrs
 
@@ -377,18 +365,27 @@ class XmlParser:
         attrs['title'] = self.gt(metadata, 'Otsikko', ctx.warning)
         ctx.current_action = attrs['title']
 
-        attrs['function_id'] = self.parse_funcid(self.gt(metadata, 'Tehtavaluokka', ctx.warning))[0]
+        (function_id, function_name) = self.parse_funcid(
+            self.gt(metadata, 'Tehtavaluokka', ctx.warning))
+        _set_if_non_empty(attrs, 'function_id', function_id)
+        _set_if_non_empty(attrs, 'function_name', function_name)
 
-        attrs['case_guid'] = self.parse_guid(self.gt(metadata, 'AsiaGuid'))
-        if attrs['case_guid'] is None and not vakiopaatos:
+        case_guid = self.parse_guid(self.gt(metadata, 'AsiaGuid'))
+        if case_guid is None and not vakiopaatos:
             ctx.error("Action doesn't have an associated case")
+        _set_if_non_empty(attrs, 'case_guid', case_guid)
 
-        attrs['date'] = self.parse_datetime(self.gt(metadata, 'Paatospaiva', ctx.error))
-        attrs['article_number'] = self.gt(metadata, 'Pykala', ctx.error, fmt=int)
+        _set_if_non_empty(
+            attrs, 'date',
+            self.parse_datetime(self.gt(metadata, 'Paatospaiva', ctx.error)))
+        article_number = self.gt(metadata, 'Pykala', ctx.error, fmt=int)
+        if article_number is not None:
+            attrs['article_number'] = article_number
 
-        attrs['dnro'] = self.gt(metadata, 'Dnro/DnroLyhyt')
-        if attrs['dnro'] is None and not vakiopaatos:
-            ctx.error("Action doesn't have a journal number (diaarinumero)")
+        register_id = self.gt(metadata, 'Dnro/DnroLyhyt')
+        if register_id is None and not vakiopaatos:
+            ctx.error("Action doesn't have a register id (diaarinumero)")
+        _set_if_non_empty(attrs, 'register_id', register_id)
 
         resolution_el = metadata.find('Asiakirjantila')
 
@@ -429,6 +426,7 @@ class XmlParser:
 
         actions = root.find('Paatokset')
 
+        attrs['type'] = 'minutes'
         attrs['event'] = self.import_event(ctx, event_metadata, event_metadata2)
         attrs['event']['actions'] = [self.import_action(ctx, ac) for ac in actions]
 
@@ -443,16 +441,13 @@ class XmlParser:
             if name not in [a['name'] for a in attrs['event']['attendees']]:
                 attrs['event']['attendees'].append({
                     'name': name,
-                    'title': None,
                     'role': 'viranhaltija',
-                    'category': None
                 })
 
         return attrs
 
     def import_esityslista(self, ctx, root):
-        # TODO
-        pass
+        raise NotImplementedError("Parsing of agendas is not implemented")
 
     def parse(self, source, except_treshold=logging.CRITICAL):
         """
@@ -473,6 +468,11 @@ class XmlParser:
             raise ValueError("Unknown root tag: {!r}".format(root.tag))
 
         return Document(data, ctx.errors)
+
+
+def _set_if_non_empty(mapping, key, value):
+    if value:
+        mapping[key] = value
 
 
 class ParseContext:
