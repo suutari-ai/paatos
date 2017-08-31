@@ -1,8 +1,8 @@
 from ....models import ImportedFile
-from .importer import Importer
+from .importer import ChangeImporter
 
 
-class DatabaseImporter(Importer):
+class DatabaseImporter(ChangeImporter):
     """
     Importer that imports from Ahjo to the database.
     """

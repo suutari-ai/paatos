@@ -1,7 +1,7 @@
 from .scanner import scan_dir
 
 
-class Importer(object):
+class ChangeImporter(object):
     def import_changes(self, root='/files'):
         """
         Detect changes on the server and import them.
