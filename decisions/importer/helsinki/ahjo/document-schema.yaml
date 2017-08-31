@@ -21,7 +21,7 @@ definitions:
 
   event:
     additionalProperties: false
-    required: [name]
+    required: [name, start_date, end_date]
     properties:
       name: {type: string}
       location: {type: string}

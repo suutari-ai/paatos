@@ -319,6 +319,16 @@ class XmlParser:
         else:
             attrs['name'] = ''
 
+        if not attrs.get('start_date') and data2 is not None:
+            date_str = self.gt(data2, 'Paivays')
+            if date_str:
+                date = datetime.datetime.strptime(date_str, '%Y-%m-%d')
+                attrs['start_date'] = LOCAL_TZ.localize(date)
+                attrs['end_date'] = LOCAL_TZ.localize(date)
+
+        if not attrs.get('start_date') or not attrs.get('end_date'):
+            raise ParseError('No date information found')
+
         return attrs
 
     def import_content(self, ctx, content):
