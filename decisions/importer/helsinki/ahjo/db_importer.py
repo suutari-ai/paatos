@@ -1,7 +1,11 @@
+import logging
+
 from django.db import transaction
 
 from ....models import ImportedFile
 from .importer import ChangeImporter
+
+LOG = logging.getLogger(__name__)
 
 
 class DatabaseImporter(ChangeImporter):
@@ -14,6 +18,8 @@ class DatabaseImporter(ChangeImporter):
     def should_import(self, doc_info):
         # Currently only "minutes" are imported, "agenda" is not.
         should_import = (doc_info.doc_type == 'minutes')
+        if not should_import:
+            LOG.info("Skipping %s: %s", doc_info.doc_type, doc_info.origin_id)
         return should_import
 
     def _import_single(self, doc_info):
@@ -38,5 +44,5 @@ class DatabaseImporter(ChangeImporter):
 
         :type doc_info: .docinfo.DocumentInfo
         """
-        print("Updating data from {}".format(doc_info))
+        LOG.info("Updating data from %s", doc_info.origin_id)
         doc = doc_info.get_document()
