@@ -15,7 +15,5 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         for filename in sys.stdin:
             filename = filename.strip()
-            print(filename)
             document = ahjo.parse_xml(filename)
             print(document.as_json())
-            print()
