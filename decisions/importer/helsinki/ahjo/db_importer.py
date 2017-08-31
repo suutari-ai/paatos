@@ -2,7 +2,7 @@ import logging
 
 from django.db import transaction
 
-from ....models import ImportedFile
+from ....models import DataSource, ImportedFile
 from .importer import ChangeImporter
 
 LOG = logging.getLogger(__name__)
@@ -12,7 +12,10 @@ class DatabaseImporter(ChangeImporter):
     """
     Importer that imports from Ahjo to the database.
     """
-    def __init__(self, data_source):
+    def __init__(self, data_source=None):
+        if data_source is None:
+            (data_source, _created) = DataSource.objects.get_or_create(
+                identifier='ahjo_xml', defaults={'name': 'Ahjo XML'})
         self.data_source = data_source
 
     def should_import(self, doc_info):
