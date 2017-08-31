@@ -24,7 +24,7 @@ class DatabaseImporter(ChangeImporter):
         # Currently only "minutes" are imported, "agenda" is not.
         should_import = (doc_info.doc_type == 'minutes')
         if not should_import:
-            LOG.info("Skipping %s: %s", doc_info.doc_type, doc_info.origin_id)
+            LOG.debug("Skipping %s: %s", doc_info.doc_type, doc_info.origin_id)
         return should_import
 
     def _import_single(self, doc_info):
@@ -70,7 +70,7 @@ class DatabaseImporter(ChangeImporter):
             data_source=self.data_source,
             origin_id=doc_info.origin_id,
             defaults=defaults)
-        _log_update_or_create(event, created)
+        _log_update_or_create(event, created, logging.INFO)
         return event
 
     def _get_or_create_organization(self, policymaker_id):
@@ -195,8 +195,8 @@ class DatabaseImporter(ChangeImporter):
         _log_update_or_create(content, created)
 
 
-def _log_update_or_create(obj, created):
+def _log_update_or_create(obj, created, level=logging.DEBUG):
     if created:
-        LOG.info('Created %s %s', type(obj).__name__, obj.pk)
+        LOG.log(level, 'Created %s %s', type(obj).__name__, obj.pk)
     else:
-        LOG.info('Updated %s %s', type(obj).__name__, obj.pk)
+        LOG.log(level, 'Updated %s %s', type(obj).__name__, obj.pk)
